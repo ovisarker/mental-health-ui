@@ -1,149 +1,91 @@
-# ==========================================
-# Student Mental Health Risk Prediction UI
-# Hybrid ML (Deployment Only)
-# ==========================================
-
+import streamlit as st
 import json
 import joblib
 import numpy as np
 import pandas as pd
-import streamlit as st
 from pathlib import Path
 
-# ------------------------------------------
-# App Config
-# ------------------------------------------
-st.set_page_config(
-    page_title="Student Mental Health Risk Prediction (Hybrid ML)",
-    page_icon="🧠",
-    layout="centered"
-)
+st.set_page_config(page_title="Student Mental Health Risk Prediction", layout="wide")
 
-st.title("🧠 Student Mental Health Risk Prediction (Hybrid ML)")
-st.caption(
-    "Outputs Anxiety / Stress / Depression as Present or Absent with % confidence "
-    "and identifies the dominant condition."
-)
-
-# ------------------------------------------
-# Paths (ROOT SAFE)
-# ------------------------------------------
 BASE_DIR = Path(__file__).parent
 
-# ------------------------------------------
-# Load Schema
-# ------------------------------------------
-def load_schema(schema_path: Path) -> dict:
-    with open(schema_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-schema = load_schema(BASE_DIR / "schema.json")
+# -------------------------------
+# Load schema
+# -------------------------------
+with open(BASE_DIR / "schema.json", "r", encoding="utf-8") as f:
+    schema = json.load(f)
 
 demo_cols = schema["demo_cols"]
 q_cols = schema["q_cols"]
-numeric_demo = set(schema.get("numeric_demo", []))
+all_cols = demo_cols + q_cols
 
-# ------------------------------------------
-# Load Models & Preprocess Pipeline
-# ------------------------------------------
+# -------------------------------
+# Load artifacts (cached)
+# -------------------------------
 @st.cache_resource
-def load_artifacts(base_dir: Path):
-    preprocess = joblib.load(base_dir / "preprocess_pipeline.joblib")
+def load_artifacts():
+    preprocess = joblib.load(BASE_DIR / "preprocess_pipeline.joblib")
 
     models = {
         "Anxiety": (
-            joblib.load(base_dir / "Anxiety_model_A.joblib"),
-            joblib.load(base_dir / "Anxiety_model_B.joblib"),
+            joblib.load(BASE_DIR / "Anxiety_model_A.joblib"),
+            joblib.load(BASE_DIR / "Anxiety_model_B.joblib")
         ),
         "Stress": (
-            joblib.load(base_dir / "Stress_model_A.joblib"),
-            joblib.load(base_dir / "Stress_model_B.joblib"),
+            joblib.load(BASE_DIR / "Stress_model_A.joblib"),
+            joblib.load(BASE_DIR / "Stress_model_B.joblib")
         ),
         "Depression": (
-            joblib.load(base_dir / "Depression_model_A.joblib"),
-            joblib.load(base_dir / "Depression_model_B.joblib"),
-        ),
+            joblib.load(BASE_DIR / "Depression_model_A.joblib"),
+            joblib.load(BASE_DIR / "Depression_model_B.joblib")
+        )
     }
     return preprocess, models
 
-preprocess, models = load_artifacts(BASE_DIR)
+preprocess, models = load_artifacts()
 
-# ------------------------------------------
-# UI – Demographics
-# ------------------------------------------
-st.subheader("👤 Demographic Information")
+# -------------------------------
+# UI
+# -------------------------------
+st.title("🧠 Student Mental Health Risk Prediction (Hybrid ML)")
+st.write("Answer all questions honestly. Scale: **0 (Never) – 3 (Very Often)**")
 
 user_input = {}
 
+st.subheader("Demographic Information")
 for col in demo_cols:
-    if col in numeric_demo:
-        user_input[col] = st.number_input(col, value=0.0)
-    else:
-        user_input[col] = st.text_input(col)
+    user_input[col] = st.text_input(col)
 
-# ------------------------------------------
-# UI – Questionnaire (33 questions)
-# ------------------------------------------
-st.subheader("📝 Mental Health Questionnaire")
-st.caption("Answer each question on a scale similar to the original survey (0–4).")
+st.subheader("Questionnaire")
+for col in q_cols:
+    user_input[col] = st.selectbox(col, [0, 1, 2, 3])
 
-for q in q_cols:
-    user_input[q] = st.selectbox(
-        q,
-        options=[0, 1, 2, 3, 4],
-        index=0
-    )
+# -------------------------------
+# Prediction
+# -------------------------------
+if st.button("Predict Mental Health Risk"):
+    input_df = pd.DataFrame([{col: user_input[col] for col in all_cols}])
 
-# ------------------------------------------
-# Prediction Logic
-# ------------------------------------------
-def hybrid_predict(row_df: pd.DataFrame, modelA, modelB):
-    p1 = modelA.predict_proba(row_df)[0]
-    p2 = modelB.predict_proba(row_df)[0]
-    avg = (p1 + p2) / 2.0
+    X_trans = preprocess.transform(input_df)
 
-    classes = modelA.classes_
-    idx = int(np.argmax(avg))
-    return classes[idx], float(avg[idx] * 100)
+    st.subheader("📊 Prediction Result")
 
-# ------------------------------------------
-# Run Prediction
-# ------------------------------------------
-if st.button("🔍 Analyze Mental Health Risk"):
-    input_df = pd.DataFrame([user_input])
-
-    # Preprocess
-    X = preprocess.transform(input_df)
-
-    st.subheader("📊 Prediction Results")
-
-    results = {}
-    dominance = []
+    risk_scores = {}
 
     for target, (mA, mB) in models.items():
-        label, confidence = hybrid_predict(X, mA, mB)
-        status = "Present" if label == 1 else "Absent"
+        pA = mA.predict_proba(X_trans)
+        pB = mB.predict_proba(X_trans)
 
-        results[target] = {
-            "status": status,
-            "confidence": confidence,
-            "models": f"{type(mA).__name__} + {type(mB).__name__}"
-        }
+        avg_prob = (pA + pB) / 2
+        pred = np.argmax(avg_prob[0])
+        conf = avg_prob[0][pred] * 100
 
-        dominance.append((target, confidence))
+        status = "Present" if pred == 1 else "Absent"
+        risk_scores[target] = conf
 
-        st.write(
-            f"**{target}** : {status}  |  "
-            f"{confidence:.2f}%  |  Hybrid: {results[target]['models']}"
-        )
+        st.write(f"**{target}**: {status} ({conf:.2f}%)")
 
-    dom_target, dom_conf = max(dominance, key=lambda x: x[1])
+    dominant = max(risk_scores, key=risk_scores.get)
 
     st.markdown("---")
-    st.error(f"🚨 **Dominant Condition:** {dom_target} ({dom_conf:.2f}%)")
-
-# ------------------------------------------
-# Footer
-# ------------------------------------------
-st.markdown("---")
-st.caption("Hybrid ML system | Research & Deployment Ready")
+    st.success(f"🚨 **Dominant Condition:** {dominant} ({risk_scores[dominant]:.2f}%)")
