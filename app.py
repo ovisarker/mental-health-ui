@@ -1,5 +1,5 @@
 # =========================================
-# Student Mental Health Risk UI (Hybrid ML)
+# Student Mental Health Risk Prediction UI
 # =========================================
 
 import streamlit as st
@@ -19,8 +19,7 @@ st.set_page_config(
 
 st.title("🧠 Student Mental Health Risk Prediction (Hybrid ML)")
 st.caption(
-    "Outputs Anxiety / Stress / Depression as Present or Absent with % confidence, "
-    "plus dominant condition."
+    "Predicts Anxiety / Stress / Depression (Present / Absent) with % confidence"
 )
 
 # ---------------------------
@@ -62,14 +61,14 @@ BASE_DIR = Path(".")
 preprocess, models = load_artifacts(BASE_DIR)
 
 # ---------------------------
-# Likert scale mapping
+# Likert Scale (User Friendly)
 # ---------------------------
-LIKERT = {
-    "0 - Never": 0,
-    "1 - Almost Never": 1,
-    "2 - Sometimes": 2,
-    "3 - Fairly Often": 3,
-    "4 - Very Often": 4,
+LIKERT_LABELS = {
+    "Never (0)": 0,
+    "Almost Never (1)": 1,
+    "Sometimes (2)": 2,
+    "Fairly Often (3)": 3,
+    "Very Often (4)": 4,
 }
 
 # ---------------------------
@@ -83,11 +82,11 @@ with st.form("mental_health_form"):
     st.subheader("Demographics")
 
     for col in demo_cols:
-        user_input[col] = st.text_input(col)
+        user_input[col] = st.text_input(col, value="")
 
     st.subheader("Questions")
     for col in q_cols:
-        user_input[col] = st.selectbox(col, list(LIKERT.keys()))
+        user_input[col] = st.selectbox(col, list(LIKERT_LABELS.keys()))
 
     submitted = st.form_submit_button("🔍 Predict Mental Health Risk")
 
@@ -95,23 +94,32 @@ with st.form("mental_health_form"):
 # Prediction
 # ---------------------------
 if submitted:
-    # 1️⃣ Build input row
     row = {}
-    for col in all_cols:
-        val = user_input.get(col, 0)
-        if isinstance(val, str) and val in LIKERT:
-            val = LIKERT[val]
-        row[col] = val
+
+    # ---- FIX 1: Convert demographics safely ----
+    for col in demo_cols:
+        val = user_input.get(col, "").strip()
+        if val == "":
+            row[col] = np.nan          # 🔥 critical fix
+        else:
+            try:
+                row[col] = float(val)
+            except:
+                row[col] = np.nan
+
+    # ---- FIX 2: Convert Likert to numeric ----
+    for col in q_cols:
+        row[col] = LIKERT_LABELS[user_input[col]]
 
     input_df = pd.DataFrame([row])
 
-    # 2️⃣ 🔥 CRITICAL FIX: align with training columns
+    # ---- FIX 3: Align columns with training ----
     input_df = input_df.reindex(
         columns=preprocess.feature_names_in_,
-        fill_value=0
+        fill_value=np.nan
     )
 
-    # 3️⃣ Preprocess
+    # ---- Preprocess ----
     X_trans = preprocess.transform(input_df)
 
     # ---------------------------
@@ -132,5 +140,8 @@ if submitted:
         st.write(f"**{target}** : {status} ({avg*100:.2f}%)")
 
     dominant = max(scores, key=scores.get)
+
     st.markdown("---")
-    st.success(f"🚨 **Dominant Condition:** {dominant} ({scores[dominant]*100:.2f}%)")
+    st.success(
+        f"🚨 **Dominant Condition:** {dominant} ({scores[dominant]*100:.2f}%)"
+    )
