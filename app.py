@@ -4,9 +4,6 @@ import joblib
 import json
 from pathlib import Path
 
-# ---------------------------
-# Paths
-# ---------------------------
 BASE_DIR = Path(__file__).parent
 
 # ---------------------------
@@ -32,15 +29,14 @@ def load_models():
 models = load_models()
 
 # ---------------------------
-# Load UI feature labels (for display only)
+# Load UI questions
 # ---------------------------
 with open(BASE_DIR / "feature_columns.json", "r", encoding="utf-8") as f:
-    UI_FEATURES = json.load(f)   # ✅ list
+    UI_FEATURES = json.load(f)  # ✅ LIST ONLY
 
 # ---------------------------
-# Extract TRUE model features (ground truth)
+# Get true model feature order
 # ---------------------------
-# Take from first pipeline
 sample_model = list(models.values())[0][0]
 MODEL_FEATURES = list(sample_model.feature_names_in_)
 
@@ -50,28 +46,27 @@ MODEL_FEATURES = list(sample_model.feature_names_in_)
 st.title("🧠 Student Mental Health Risk Predictor")
 
 st.markdown("""
-**Response Scale**
-- 0 — Never
-- 1 — Almost Never
-- 2 — Sometimes
-- 3 — Fairly Often
-- 4 — Very Often
+### Response Scale
+- Never
+- Almost Never
+- Sometimes
+- Fairly Often
+- Very Often
 """)
+
+SCALE = {
+    "Never": 0,
+    "Almost Never": 1,
+    "Sometimes": 2,
+    "Fairly Often": 3,
+    "Very Often": 4,
+}
 
 user_input = {}
 
-for col in UI_FEATURES:
-    user_input[col] = st.selectbox(
-        col,
-        [0, 1, 2, 3, 4],
-        format_func=lambda x: {
-            0: "0 — Never",
-            1: "1 — Almost Never",
-            2: "2 — Sometimes",
-            3: "3 — Fairly Often",
-            4: "4 — Very Often",
-        }[x]
-    )
+for question in UI_FEATURES:
+    choice = st.selectbox(question, list(SCALE.keys()))
+    user_input[question] = SCALE[choice]
 
 # ---------------------------
 # Prediction
@@ -79,7 +74,7 @@ for col in UI_FEATURES:
 if st.button("🔍 Predict Mental Health Risk"):
     raw_df = pd.DataFrame([user_input])
 
-    # 🔑 ALIGN TO MODEL FEATURES (THIS IS THE MAGIC FIX)
+    # Align with model
     input_df = raw_df.reindex(columns=MODEL_FEATURES, fill_value=0)
 
     st.subheader("📊 Prediction Results")
@@ -89,4 +84,4 @@ if st.button("🔍 Predict Mental Health Risk"):
         p2 = m2.predict_proba(input_df)[0][1]
         avg = (p1 + p2) / 2
 
-        st.metric(f"{target} Risk", f"{avg * 100:.2f}%")
+        st.metric(target, f"{avg * 100:.2f}%")
