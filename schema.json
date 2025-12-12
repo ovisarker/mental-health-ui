@@ -1,0 +1,15 @@
+import json, os
+
+schema = {
+  "demo_cols": demo_cols,
+  "q_cols": q_cols,
+  "numeric_demo": numeric_demo,
+  "cat_demo": cat_demo,
+  "question_scale_min": 0,
+  "question_scale_max": 4
+}
+
+with open("schema.json", "w") as f:
+    json.dump(schema, f, indent=2)
+
+print("✅ schema.json saved")
