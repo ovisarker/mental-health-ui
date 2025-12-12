@@ -5,18 +5,18 @@ import json
 from pathlib import Path
 
 # ---------------------------
-# Base directory (ROOT)
+# Paths
 # ---------------------------
 BASE_DIR = Path(__file__).parent
 
 # ---------------------------
-# Load feature columns (JSON)
+# Load feature names
 # ---------------------------
-with open(BASE_DIR / "feature_columns.json") as f:
+with open(BASE_DIR / "feature_columns.json", "r", encoding="utf-8") as f:
     FEATURE_COLS = json.load(f)
 
 # ---------------------------
-# Load FULL models (with preprocess inside)
+# Load FULL PIPELINE models
 # ---------------------------
 @st.cache_resource
 def load_models():
@@ -44,33 +44,29 @@ st.title("🧠 Student Mental Health Risk Predictor")
 
 st.markdown("""
 ### Response Scale
-- **0** — Never  
-- **1** — Almost Never  
-- **2** — Sometimes  
-- **3** — Fairly Often  
-- **4** — Very Often  
-
-Please answer all questions honestly based on your experience in the current semester.
+- **0 — Never**
+- **1 — Almost Never**
+- **2 — Sometimes**
+- **3 — Fairly Often**
+- **4 — Very Often**
 """)
 
 # ---------------------------
-# User Input
+# Input form
 # ---------------------------
 user_input = {}
-
-scale_map = {
-    0: "0 — Never",
-    1: "1 — Almost Never",
-    2: "2 — Sometimes",
-    3: "3 — Fairly Often",
-    4: "4 — Very Often",
-}
 
 for col in FEATURE_COLS:
     user_input[col] = st.selectbox(
         col,
-        list(scale_map.keys()),
-        format_func=lambda x: scale_map[x]
+        options=[0, 1, 2, 3, 4],
+        format_func=lambda x: {
+            0: "0 — Never",
+            1: "1 — Almost Never",
+            2: "2 — Sometimes",
+            3: "3 — Fairly Often",
+            4: "4 — Very Often",
+        }[x]
     )
 
 # ---------------------------
@@ -89,17 +85,7 @@ if st.button("🔍 Predict Mental Health Risk"):
         avg = (p1 + p2) / 2
 
         scores[target] = avg
+        st.metric(f"{target} Risk", f"{avg*100:.2f}%")
 
-        st.metric(
-            label=f"{target} Risk",
-            value=f"{avg * 100:.2f}%"
-        )
-
-    # ---------------------------
-    # Dominant Condition
-    # ---------------------------
     dominant = max(scores, key=scores.get)
-
-    st.markdown("---")
-    st.subheader("🧠 Dominant Mental Health Condition")
-    st.success(f"**{dominant}** ({scores[dominant] * 100:.2f}%)")
+    st.success(f"🚨 Dominant Condition: **{dominant}**")
