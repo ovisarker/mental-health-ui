@@ -4,92 +4,82 @@ import joblib
 from pathlib import Path
 
 # ---------------------------
-# Page Config
-# ---------------------------
-st.set_page_config(
-    page_title="Student Mental Health Risk Predictor",
-    page_icon="🧠",
-    layout="centered"
-)
-
-st.title("🧠 Student Mental Health Risk Predictor")
-
-# ---------------------------
-# Load Models (PIPELINES)
+# Config
 # ---------------------------
 BASE_DIR = Path(__file__).parent
-
-models = {
-    "Depression": (
-        joblib.load(BASE_DIR / "depression_model_A.joblib"),
-        joblib.load(BASE_DIR / "depression_model_B.joblib"),
-    ),
-    "Anxiety": (
-        joblib.load(BASE_DIR / "anxiety_model_A.joblib"),
-        joblib.load(BASE_DIR / "anxiety_model_B.joblib"),
-    ),
-    "Stress": (
-        joblib.load(BASE_DIR / "stress_model_A.joblib"),
-        joblib.load(BASE_DIR / "stress_model_B.joblib"),
-    ),
-}
+ARTIFACT_DIR = BASE_DIR / "artifacts"
 
 # ---------------------------
-# Feature Names (MUST MATCH TRAINING)
+# Load models (PIPELINES)
 # ---------------------------
-FEATURES = models["Depression"][0].feature_names_in_
+@st.cache_resource
+def load_models():
+    return {
+        "Anxiety": (
+            joblib.load(ARTIFACT_DIR / "Anxiety_model_A.joblib"),
+            joblib.load(ARTIFACT_DIR / "Anxiety_model_B.joblib"),
+        ),
+        "Stress": (
+            joblib.load(ARTIFACT_DIR / "Stress_model_A.joblib"),
+            joblib.load(ARTIFACT_DIR / "Stress_model_B.joblib"),
+        ),
+        "Depression": (
+            joblib.load(ARTIFACT_DIR / "Depression_model_A.joblib"),
+            joblib.load(ARTIFACT_DIR / "Depression_model_B.joblib"),
+        ),
+    }
+
+models = load_models()
 
 # ---------------------------
-# Value Meaning (UI clarity)
+# Column order (MUST MATCH TRAINING)
 # ---------------------------
-SCALE = {
-    "0 — Never": 0,
-    "1 — Almost Never": 1,
-    "2 — Sometimes": 2,
-    "3 — Fairly Often": 3,
-    "4 — Very Often": 4,
-}
+FEATURE_COLS = joblib.load(ARTIFACT_DIR / "feature_names.joblib")
 
 # ---------------------------
-# Questionnaire UI
+# UI
 # ---------------------------
-st.subheader("📋 Questionnaire")
+st.title("🧠 Student Mental Health Risk Predictor")
 
-user_row = {}
+st.markdown("""
+**Scale meaning**
+- 0 — Never  
+- 1 — Almost Never  
+- 2 — Sometimes  
+- 3 — Fairly Often  
+- 4 — Very Often  
+""")
 
-for col in FEATURES:
-    user_row[col] = st.selectbox(
+user_input = {}
+
+for col in FEATURE_COLS:
+    user_input[col] = st.selectbox(
         col,
-        list(SCALE.keys()),
-        index=0
+        options=[0, 1, 2, 3, 4],
+        format_func=lambda x: {
+            0: "0 — Never",
+            1: "1 — Almost Never",
+            2: "2 — Sometimes",
+            3: "3 — Fairly Often",
+            4: "4 — Very Often",
+        }[x],
     )
 
 # ---------------------------
-# Predict Button
+# Predict
 # ---------------------------
 if st.button("🔍 Predict Mental Health Risk"):
-    # Convert to numeric
-    for k in user_row:
-        user_row[k] = SCALE[user_row[k]]
-
-    input_df = pd.DataFrame([user_row])
+    input_df = pd.DataFrame([user_input])
 
     st.subheader("📊 Prediction Result")
 
     for target, (m1, m2) in models.items():
+        # ⚠️ DO NOT PREPROCESS — PIPELINE DOES IT
         p1 = m1.predict_proba(input_df)[0][1]
         p2 = m2.predict_proba(input_df)[0][1]
         avg = (p1 + p2) / 2
 
-        if avg < 0.33:
-            level = "🟢 Low Risk"
-        elif avg < 0.66:
-            level = "🟡 Moderate Risk"
-        else:
-            level = "🔴 High Risk"
-
         st.metric(
-            label=target,
-            value=f"{level}",
-            delta=f"{avg*100:.1f}% probability"
+            label=f"{target} Risk",
+            value=f"{avg*100:.2f}%",
         )
