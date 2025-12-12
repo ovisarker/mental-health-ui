@@ -1,0 +1,8 @@
+import pandas as pd
+import joblib
+
+df = pd.read_csv("Processed.csv")
+
+X = df.drop(columns=["Anxiety_Label", "Stress_Label", "Depression_Label"])
+
+joblib.dump(list(X.columns), "feature_names.joblib")
