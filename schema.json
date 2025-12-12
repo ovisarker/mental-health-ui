@@ -1,15 +1,29 @@
-import json, os
-
-schema = {
-  "demo_cols": demo_cols,
-  "q_cols": q_cols,
-  "numeric_demo": numeric_demo,
-  "cat_demo": cat_demo,
+{
+  "demo_cols": [
+    "Age",
+    "Gender",
+    "Department",
+    "Academic Year",
+    "CGPA",
+    "University",
+    "Scholarship"
+  ],
+  "q_cols": [
+    "Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10",
+    "Q11","Q12","Q13","Q14","Q15","Q16","Q17",
+    "Q18","Q19","Q20","Q21","Q22","Q23","Q24","Q25","Q26"
+  ],
+  "numeric_demo": [
+    "Age",
+    "CGPA"
+  ],
+  "cat_demo": [
+    "Gender",
+    "Department",
+    "Academic Year",
+    "University",
+    "Scholarship"
+  ],
   "question_scale_min": 0,
   "question_scale_max": 4
 }
-
-with open("schema.json", "w") as f:
-    json.dump(schema, f, indent=2)
-
-print("✅ schema.json saved")
