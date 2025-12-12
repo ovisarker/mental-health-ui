@@ -21,16 +21,16 @@ BASE_DIR = Path(__file__).parent
 
 models = {
     "Depression": (
-        joblib.load(BASE_DIR / "depression_model_1.joblib"),
-        joblib.load(BASE_DIR / "depression_model_2.joblib"),
+        joblib.load(BASE_DIR / "depression_model_A.joblib"),
+        joblib.load(BASE_DIR / "depression_model_B.joblib"),
     ),
     "Anxiety": (
-        joblib.load(BASE_DIR / "anxiety_model_1.joblib"),
-        joblib.load(BASE_DIR / "anxiety_model_2.joblib"),
+        joblib.load(BASE_DIR / "anxiety_model_A.joblib"),
+        joblib.load(BASE_DIR / "anxiety_model_B.joblib"),
     ),
     "Stress": (
-        joblib.load(BASE_DIR / "stress_model_1.joblib"),
-        joblib.load(BASE_DIR / "stress_model_2.joblib"),
+        joblib.load(BASE_DIR / "stress_model_A.joblib"),
+        joblib.load(BASE_DIR / "stress_model_B.joblib"),
     ),
 }
 
