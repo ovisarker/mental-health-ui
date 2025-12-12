@@ -1,15 +1,22 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import json
 from pathlib import Path
 
 # ---------------------------
-# Paths (ROOT folder)
+# Base directory (ROOT)
 # ---------------------------
 BASE_DIR = Path(__file__).parent
 
 # ---------------------------
-# Load models (FULL PIPELINES)
+# Load feature columns (JSON)
+# ---------------------------
+with open(BASE_DIR / "feature_columns.json") as f:
+    FEATURE_COLS = json.load(f)
+
+# ---------------------------
+# Load FULL models (with preprocess inside)
 # ---------------------------
 @st.cache_resource
 def load_models():
@@ -31,11 +38,6 @@ def load_models():
 models = load_models()
 
 # ---------------------------
-# Load RAW feature names (33)
-# ---------------------------
-FEATURE_COLS = joblib.load(BASE_DIR / "feature_names.joblib")
-
-# ---------------------------
 # UI
 # ---------------------------
 st.title("🧠 Student Mental Health Risk Predictor")
@@ -47,21 +49,28 @@ st.markdown("""
 - **2** — Sometimes  
 - **3** — Fairly Often  
 - **4** — Very Often  
+
+Please answer all questions honestly based on your experience in the current semester.
 """)
 
+# ---------------------------
+# User Input
+# ---------------------------
 user_input = {}
+
+scale_map = {
+    0: "0 — Never",
+    1: "1 — Almost Never",
+    2: "2 — Sometimes",
+    3: "3 — Fairly Often",
+    4: "4 — Very Often",
+}
 
 for col in FEATURE_COLS:
     user_input[col] = st.selectbox(
         col,
-        [0, 1, 2, 3, 4],
-        format_func=lambda x: {
-            0: "0 — Never",
-            1: "1 — Almost Never",
-            2: "2 — Sometimes",
-            3: "3 — Fairly Often",
-            4: "4 — Very Often",
-        }[x]
+        list(scale_map.keys()),
+        format_func=lambda x: scale_map[x]
     )
 
 # ---------------------------
@@ -72,12 +81,25 @@ if st.button("🔍 Predict Mental Health Risk"):
 
     st.subheader("📊 Prediction Result")
 
+    scores = {}
+
     for target, (m1, m2) in models.items():
         p1 = m1.predict_proba(input_df)[0][1]
         p2 = m2.predict_proba(input_df)[0][1]
         avg = (p1 + p2) / 2
 
+        scores[target] = avg
+
         st.metric(
             label=f"{target} Risk",
             value=f"{avg * 100:.2f}%"
         )
+
+    # ---------------------------
+    # Dominant Condition
+    # ---------------------------
+    dominant = max(scores, key=scores.get)
+
+    st.markdown("---")
+    st.subheader("🧠 Dominant Mental Health Condition")
+    st.success(f"**{dominant}** ({scores[dominant] * 100:.2f}%)")
